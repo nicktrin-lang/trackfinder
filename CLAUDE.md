@@ -138,9 +138,21 @@ have the front-end poll job status.
    re-invokes until `remaining=0`. Plus `/api/job-status` for polling.
 5. ✅ Wire the front-end (`index.html`) to real job data — paste box → create-job → worker batches →
    poll. Mock `tracks` array + fake timers removed.
-6. ⛔ YouTube OAuth + `/api/create-playlist` (gated behind consent + confirm) — HELD until the
-   read/search pipeline is verified end to end with live keys (per the "don't build playlist
-   creation until read/search works" rule + the side-effect gate).
+6. ✅ YouTube OAuth + `/api/create-playlist` (gated behind consent + confirm; playlist is PRIVATE).
+   Flow: `/api/auth/youtube-start` → Google consent → `/api/auth/youtube-callback` stores tokens in
+   `connections` (`user_id='app'`, single-connection personal-tool model). `/api/youtube-connection`
+   reports status; the UI's Create button requires a connection + a `window.confirm`. **Untested** —
+   needs a Google OAuth client + the pipeline verified with live keys first.
+
+### YouTube OAuth setup (do before testing step 6)
+- Google Cloud console → enable **YouTube Data API v3** → configure the **OAuth consent screen**
+  (add yourself as a test user) → create an **OAuth client ID** (type: Web application).
+- Register **Authorized redirect URIs** exactly:
+  - `http://localhost:3000/api/auth/youtube-callback` (local `vercel dev`)
+  - `https://<your-vercel-domain>/api/auth/youtube-callback` (production)
+- Put the client id/secret in `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET`.
+- Note: single-connection model — whoever completes OAuth owns the target account. Fine for a
+  personal tool; multi-user would key tokens per real user id.
 
 ---
 

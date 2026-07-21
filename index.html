@@ -89,6 +89,11 @@
   .paste-hint code{color:var(--cyan);background:#141A23;padding:1px 5px;border-radius:4px;}
   .paste-actions .btn{margin-left:auto;}
 
+  .plname{background:#0F141C;border:1px solid var(--line);border-radius:9px;color:var(--text);
+    font-family:var(--mono);font-size:12px;padding:10px 12px;min-width:150px;outline:none;}
+  .plname:focus{border-color:var(--cyan);}
+  #connect.connected{color:var(--green);border-color:rgba(86,209,134,.4);cursor:default;}
+
   .worker{display:flex;align-items:center;gap:12px;margin:26px 0 6px;
     font-family:var(--mono);font-size:12px;color:var(--muted);}
   .worker .dot{width:8px;height:8px;border-radius:99px;background:var(--violet);flex:none;}
@@ -276,9 +281,11 @@
 <div class="dock">
   <div class="dock-inner">
     <div class="summary">
-      <b id="sel">5</b> of <b>6</b> extended mixes selected&nbsp;&middot;&nbsp;<span class="amberv" id="added">+18:39 added</span><br>
-      <span id="qest">&asymp; 8 searches used &middot; +250 units to build playlist</span>
+      <b id="sel">0</b> of <b>0</b> extended mixes selected&nbsp;&middot;&nbsp;<span class="amberv" id="added">+0:00 added</span><br>
+      <span id="qest">0 extended mixes found</span>
     </div>
+    <input id="plname" class="plname" type="text" placeholder="Playlist name (optional)" aria-label="Playlist name" />
+    <button class="btn btn-ghost" id="connect">Connect YouTube</button>
     <button class="btn btn-primary" id="create">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14M12 5v14"/></svg>
       Create YouTube playlist
@@ -526,23 +533,83 @@
   });
   list.addEventListener('change', e=>{ if(e.target.classList.contains('incbox')) updateDock(); });
 
-  // Playlist creation is the next step (YouTube OAuth) — be honest, don't fake success.
-  document.getElementById('create').addEventListener('click', ()=>{
+  // ---- YouTube connection + playlist creation (step 6) ----
+  const connectBtn = document.getElementById('connect');
+  const createBtn  = document.getElementById('create');
+  const plname     = document.getElementById('plname');
+  let ytConnected = false;
+
+  function setConnected(v){
+    ytConnected = v;
+    connectBtn.textContent = v ? 'YouTube connected ✓' : 'Connect YouTube';
+    connectBtn.classList.toggle('connected', v);
+  }
+  async function refreshConnection(){
+    try { const r = await fetch('/api/youtube-connection').then(r=>r.json()); setConnected(!!r.connected); }
+    catch { setConnected(false); }
+  }
+  function flashToast(title, sub){
+    document.querySelector('#toast .tt').textContent = title;
+    document.querySelector('#toast .ts').textContent = sub;
+    toast.classList.add('on'); clearTimeout(flashToast._t);
+    flashToast._t = setTimeout(()=> toast.classList.remove('on'), 3800);
+  }
+  function defaultName(){
+    const d = new Date();
+    return `TrackFinder — Extended (${d.toLocaleString('en-US',{month:'short'})} ${d.getDate()})`;
+  }
+
+  connectBtn.addEventListener('click', ()=>{
+    if(ytConnected) return;
+    window.location.href = '/api/auth/youtube-start';
+  });
+
+  createBtn.addEventListener('click', async ()=>{
     const { items } = collectSelection();
-    document.querySelector('#toast .tt').textContent = 'Playlist creation is the next step';
-    document.querySelector('#toast .ts').textContent =
-      `${items.length} track${items.length===1?'':'s'} selected · YouTube sign-in + playlist build isn't wired up yet`;
-    document.querySelector('#toast').classList.add('on');
-    setTimeout(()=> document.querySelector('#toast').classList.remove('on'), 3800);
+    if(items.length===0){ flashToast('Nothing selected', 'Pick at least one track to include.'); return; }
+    if(!ytConnected){ flashToast('Connect YouTube first', 'Click “Connect YouTube”, approve access, then try again.'); return; }
+
+    const name = (plname.value.trim() || defaultName()).slice(0,150);
+    // Explicit confirm — this writes to YOUR YouTube account (as a private playlist).
+    if(!window.confirm(`Create the playlist “${name}” with ${items.length} track${items.length===1?'':'s'} on your YouTube account?\n\nIt will be created as PRIVATE.`)) return;
+
+    createBtn.disabled = true;
+    const prev = createBtn.innerHTML;
+    createBtn.textContent = 'Creating…';
+    try {
+      const r = await postJSON('/api/create-playlist', { title:name, videoIds: items.map(i=>i.youtube_id) });
+      if(r.error){
+        if(r.needsAuth){ setConnected(false); flashToast('Reconnect needed', r.error); }
+        else flashToast('Could not create playlist', r.error);
+      } else {
+        document.querySelector('#toast .tt').textContent = `Playlist created — “${name}”`;
+        document.querySelector('#toast .ts').innerHTML =
+          `${r.added} track${r.added===1?'':'s'} added · <a href="${r.url}" target="_blank" rel="noopener" style="color:var(--cyan)">open in YouTube ↗</a>`;
+        toast.classList.add('on'); setTimeout(()=> toast.classList.remove('on'), 6000);
+      }
+    } catch { flashToast('Request failed', 'Could not reach the server.'); }
+    finally { createBtn.disabled = false; createBtn.innerHTML = prev; }
   });
 
   findBtn.addEventListener('click', findExtended);
+
+  // Handle the OAuth redirect result (?youtube=connected|denied|error|badstate).
+  const _p = new URLSearchParams(window.location.search).get('youtube');
+  if(_p){
+    const msg = { connected:'YouTube connected — you can build a playlist now.',
+                  denied:'YouTube access was declined.',
+                  error:'Something went wrong connecting YouTube.',
+                  badstate:'Session expired — try connecting again.' }[_p];
+    if(msg) flashToast(_p==='connected'?'Connected ✓':'Heads up', msg);
+    window.history.replaceState({}, '', window.location.pathname);
+  }
 
   // Idle state on load.
   worker.classList.remove('live');
   wnow.textContent = 'paste a tracklist and hit Find';
   wcount.textContent = '';
   updateDock();
+  refreshConnection();
 </script>
 </body>
 </html>
