@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Trackfinder — find the extended versions</title>
+<title>TrackFinder — find the extended versions</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -29,14 +29,14 @@
     color:var(--text); font-family:var(--body);
     -webkit-font-smoothing:antialiased; min-height:100vh; line-height:1.5;
   }
-  .wrap{max-width:1060px;margin:0 auto;padding:0 22px 140px;}
+  .wrap{max-width:1060px;margin:0 auto;padding:0 22px 160px;}
 
   .topbar{position:sticky;top:0;z-index:40;
     background:linear-gradient(180deg, rgba(11,14,19,.94), rgba(11,14,19,.72));
     backdrop-filter:blur(10px);border-bottom:1px solid var(--line-soft);}
   .topbar-inner{max-width:1060px;margin:0 auto;padding:16px 22px;
-    display:flex;align-items:center;gap:18px;flex-wrap:wrap;}
-  .brand{display:flex;align-items:baseline;gap:10px;}
+    display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+  .brand{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;}
   .brand .mark{font-family:var(--display);font-weight:700;font-size:22px;letter-spacing:-.02em;}
   .brand .mark b{color:var(--amber);font-weight:700;}
   .brand .tag{font-family:var(--mono);font-size:11px;color:var(--muted-2);letter-spacing:.02em;}
@@ -48,7 +48,7 @@
 
   .hero{padding:52px 0 26px;}
   .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--amber);margin:0 0 16px;}
-  h1{font-family:var(--display);font-weight:600;letter-spacing:-.03em;font-size:clamp(30px,5vw,50px);line-height:1.04;margin:0 0 16px;max-width:16ch;}
+  h1{font-family:var(--display);font-weight:600;letter-spacing:-.03em;font-size:clamp(28px,5.5vw,50px);line-height:1.04;margin:0 0 16px;max-width:16ch;}
   h1 .accent{color:var(--cyan);}
   h1 .accent-2{color:var(--amber);}
   .lede{color:var(--muted);font-size:16px;max-width:56ch;margin:0 0 30px;}
@@ -60,7 +60,7 @@
   .sc-badge{display:flex;align-items:center;gap:8px;padding:0 4px 0 14px;color:var(--muted);
     font-family:var(--mono);font-size:12px;white-space:nowrap;}
   .sc-badge svg{flex:none;}
-  .inputcard input{flex:1;min-width:200px;background:transparent;border:none;outline:none;color:var(--text);
+  .inputcard input{flex:1;min-width:180px;background:transparent;border:none;outline:none;color:var(--text);
     font-family:var(--mono);font-size:14px;padding:16px 6px;}
   .inputcard input::placeholder{color:var(--muted-2);}
   .btn{font-family:var(--display);font-weight:600;font-size:14px;letter-spacing:-.01em;
@@ -79,7 +79,7 @@
   .worker.live .dot{animation:pulse 1.5s infinite;}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(169,139,255,.5);}70%{box-shadow:0 0 0 9px rgba(169,139,255,0);}100%{box-shadow:0 0 0 0 rgba(169,139,255,0);}}
   .worker b{color:var(--violet);font-weight:700;}
-  .worker .count{margin-left:auto;color:var(--muted-2);}
+  .worker .count{margin-left:auto;color:var(--muted-2);white-space:nowrap;}
 
   .list{display:flex;flex-direction:column;gap:12px;margin-top:14px;}
   .track{background:var(--panel);border:1px solid var(--line-soft);border-radius:14px;
@@ -182,18 +182,34 @@
   .toast{position:fixed;bottom:96px;left:50%;transform:translateX(-50%) translateY(20px);
     background:var(--panel-2);border:1px solid var(--green);border-radius:12px;
     padding:14px 20px;display:flex;align-items:center;gap:12px;opacity:0;pointer-events:none;
-    transition:.4s cubic-bezier(.2,.7,.2,1);z-index:60;box-shadow:0 20px 50px -20px rgba(0,0,0,.8);}
+    transition:.4s cubic-bezier(.2,.7,.2,1);z-index:60;box-shadow:0 20px 50px -20px rgba(0,0,0,.8);max-width:calc(100vw - 32px);}
   .toast.on{opacity:1;transform:translateX(-50%) translateY(0);}
-  .toast .ico{color:var(--green);}
+  .toast .ico{color:var(--green);flex:none;}
   .toast .tt{font-size:14px;font-weight:600;}
   .toast .ts{font-family:var(--mono);font-size:11px;color:var(--muted);}
 
+  @media (max-width:720px){
+    .dock .btn-primary{margin-left:0;}
+  }
   @media (max-width:620px){
-    .row{grid-template-columns:60px 42px 1fr;gap:8px;}
-    .quota{width:100%;justify-content:flex-end;}
+    .wrap{padding:0 16px 210px;}
+    .topbar-inner{padding:14px 16px;}
+    .hero{padding:38px 0 22px;}
     .brand{width:100%;}
+    .quota{width:100%;justify-content:flex-start;}
+    .quota .label{text-align:left;}
+    .inputcard{flex-direction:column;align-items:stretch;padding:12px;}
+    .sc-badge{padding:2px 4px;}
+    .inputcard input{padding:6px 4px 10px;border-bottom:1px solid var(--line-soft);}
+    .inputcard .btn{width:100%;}
+    .row{grid-template-columns:58px 42px 1fr;gap:8px;}
+    .track{padding:16px;}
     .match{flex-direction:column;align-items:stretch;}
     .actions{justify-content:space-between;}
+    .dock-inner{padding:14px 16px;gap:12px;}
+    .dock .btn-primary{width:100%;justify-content:center;}
+    .worker{flex-wrap:wrap;}
+    .worker .count{margin-left:0;width:100%;}
   }
   @media (prefers-reduced-motion:reduce){
     *{transition:none!important;animation:none!important;}
@@ -206,7 +222,7 @@
 <div class="topbar">
   <div class="topbar-inner">
     <div class="brand">
-      <span class="mark">Track<b>finder</b></span>
+      <span class="mark">Track<b>Finder</b></span>
       <span class="tag">radio edit &rarr; extended mix</span>
     </div>
     <div class="quota">
