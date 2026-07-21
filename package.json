@@ -1,0 +1,15 @@
+{
+  "name": "trackfinder",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Find extended/club versions of radio-edit tracks from a SoundCloud playlist.",
+  "scripts": {
+    "test:job": "node --env-file=.env scripts/test-create-job.mjs",
+    "test:worker": "node --env-file=.env scripts/test-worker.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.68.0",
+    "@supabase/supabase-js": "^2.45.0"
+  }
+}

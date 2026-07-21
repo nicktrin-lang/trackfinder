@@ -72,6 +72,22 @@
   .btn-primary:active{transform:translateY(1px);}
   .btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--line);}
   .btn-ghost:hover{color:var(--text);border-color:var(--muted-2);}
+  .btn[disabled]{opacity:.5;cursor:default;}
+
+  .pastecard{background:linear-gradient(180deg,var(--panel-2),var(--panel));
+    border:1px solid var(--line);border-radius:16px;padding:16px;
+    box-shadow:0 20px 50px -30px rgba(0,0,0,.9);}
+  .paste-label{display:block;font-family:var(--mono);font-size:12px;color:var(--muted);margin:0 0 10px;}
+  .paste-label b{color:var(--text);font-weight:700;}
+  #tracksin{width:100%;min-height:132px;resize:vertical;background:#0F141C;
+    border:1px solid var(--line);border-radius:11px;color:var(--text);
+    font-family:var(--mono);font-size:14px;line-height:1.7;padding:14px;outline:none;}
+  #tracksin:focus{border-color:var(--cyan);}
+  #tracksin::placeholder{color:var(--muted-2);}
+  .paste-actions{display:flex;align-items:center;gap:14px;margin-top:12px;flex-wrap:wrap;}
+  .paste-hint{font-family:var(--mono);font-size:11.5px;color:var(--muted-2);flex:1;min-width:180px;}
+  .paste-hint code{color:var(--cyan);background:#141A23;padding:1px 5px;border-radius:4px;}
+  .paste-actions .btn{margin-left:auto;}
 
   .worker{display:flex;align-items:center;gap:12px;margin:26px 0 6px;
     font-family:var(--mono);font-size:12px;color:var(--muted);}
@@ -236,16 +252,15 @@
   <section class="hero">
     <p class="eyebrow">Playlist upgrader</p>
     <h1>Drop in the <span class="accent">radio edits</span>.<br>Get back the <span class="accent-2">extended mixes</span>.</h1>
-    <p class="lede">Paste a SoundCloud playlist of short cuts. A TrackFinder worker searches YouTube for each track, compares durations to spot the genuine club-length version, and builds you a playlist of the long ones.</p>
+    <p class="lede">Paste your list of radio edits. A TrackFinder worker searches YouTube for each track, compares durations to spot the genuine club-length version, and builds you a playlist of the long ones.</p>
 
-    <div class="inputcard">
-      <span class="sc-badge">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17 9c-.3 0-.6 0-.9.1C15.6 6.7 13.5 5 11 5c-.6 0-1.2.1-1.7.3-.2.1-.3.2-.3.4v9.8c0 .2.2.4.4.4H17c1.9 0 3.5-1.6 3.5-3.5S18.9 9 17 9zM7.5 7.3c-.2 0-.3.1-.3.3l-.4 7.4.4 7.1c0 .2.1.3.3.3s.3-.1.3-.3l.4-7.1-.4-7.4c0-.2-.1-.3-.3-.3zm-2 1.6c-.2 0-.3.1-.3.3L4.8 15l.4 5.8c0 .2.1.3.3.3s.3-.1.3-.3l.4-5.8-.4-5.8c0-.2-.1-.3-.3-.3zm-2 1.3c-.2 0-.3.1-.3.3L2.8 15l.4 5.5c0 .2.1.3.3.3s.3-.1.3-.3l.4-5.5-.4-5.2c0-.2-.1-.3-.3-.3z"/></svg>
-        soundcloud.com/
-      </span>
-      <input id="urlin" type="text" value="you/sets/late-night-radio-edits" spellcheck="false" aria-label="SoundCloud playlist URL" />
-      <button class="btn btn-ghost" id="rerun">Re-run</button>
-      <button class="btn btn-primary" id="find">Find extended versions</button>
+    <div class="pastecard">
+      <label class="paste-label" for="tracksin">Paste your tracklist — one <b>Artist - Title</b> per line</label>
+      <textarea id="tracksin" spellcheck="false" placeholder="Daft Punk - One More Time&#10;Stardust - Music Sounds Better With You&#10;Eric Prydz - Call On Me"></textarea>
+      <div class="paste-actions">
+        <span class="paste-hint" id="paste-hint">Optional: add a duration like <code>3:45</code> at the end of a line to sharpen the match.</span>
+        <button class="btn btn-primary" id="find">Find extended versions</button>
+      </div>
     </div>
   </section>
 
@@ -280,106 +295,116 @@
 </div>
 
 <script>
-  const SCALE = 500;
-  const fmt = s => `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
-  const pct = s => Math.min(100, (s/SCALE)*100);
+  const SCALE = 500; // seconds mapped to full bar width
+  const fmt = s => (s==null ? '—' : `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`);
+  const pct = s => Math.min(100, ((s||0)/SCALE)*100);
+  const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
-  const tracks = [
-    { i:1, t:"Slow Tide", a:"Marlo Vann", edit:214, ext:418, state:"strong", conf:96,
-      yt:"Marlo Vann &ndash; Slow Tide (Extended Mix)", ch:"Anjunadeep",
-      reason:"Extended runs 6:58 vs the 3:34 edit &mdash; a clean +3:24, the expected club-length build. Same artist, official channel." },
-    { i:2, t:"Neon Ferns", a:"K&uuml;te", edit:192, ext:440, state:"strong", conf:94,
-      yt:"K&uuml;te &ndash; Neon Ferns (Extended Mix)", ch:"All Day I Dream",
-      reason:"Only candidate over 7 minutes with an &ldquo;Extended Mix&rdquo; title. Ruled out a 1-hour loop upload and a sped-up edit." },
-    { i:3, t:"Held Light", a:"Ander Roos", edit:228, ext:400, state:"review",
-      reason:"Two plausible long versions with different structure &mdash; pick which one belongs in the set.",
-      cands:[
-        { c1:"Ander Roos &ndash; Held Light (Extended Mix)", c2:"official &middot; matches edit intro", dur:400, pick:true },
-        { c1:"Ander Roos &ndash; Held Light (Bassbrenner Remix)", c2:"remix &middot; different chord progression", dur:372, pick:false }
-      ] },
-    { i:4, t:"Copper Hours", a:"Sela", edit:210, ext:432, state:"strong", conf:92,
-      yt:"Sela &ndash; Copper Hours (Extended Mix)", ch:"Colorize",
-      reason:"Duration delta +3:42 lines up with the edit; intro/outro extended, not a fan re-edit." },
-    { i:5, t:"Paper Moon", a:"Vosk", edit:205, ext:null, state:"none" },
-    { i:6, t:"Undertow", a:"Anje Fell", edit:242, ext:485, state:"strong", conf:90,
-      yt:"Anje Fell &ndash; Undertow (Club Mix)", ch:"Get Physical",
-      reason:"No &ldquo;Extended&rdquo; tag, but the 8:05 Club Mix is the long version DJs use &mdash; matched on structure, not just the word." }
-  ];
+  const list   = document.getElementById('list');
+  const worker = document.getElementById('worker');
+  const wnow   = document.getElementById('wnow');
+  const wcount = document.getElementById('wcount');
+  const qfill  = document.getElementById('qfill');
+  const qnum   = document.getElementById('qnum');
+  const findBtn = document.getElementById('find');
+  const toast  = document.getElementById('toast');
 
-  const list = document.getElementById('list');
+  let currentTracks = [];  // latest job-status snapshot
+
+  function setQuota(units){
+    qnum.textContent = units.toLocaleString();
+    qfill.style.width = Math.min(100,(units/10000)*100) + '%';
+  }
 
   function trackHTML(tk){
+    const i = (tk.position ?? 0) + 1;
+    const edit = tk.edit_seconds;
+    const st = tk.state;
+
     const editRow = `
       <div class="row">
         <span class="k">radio edit</span>
-        <span class="dur">${fmt(tk.edit)}</span>
-        <div class="barwrap"><div class="bar cyan" style="width:0%" data-w="${pct(tk.edit)}"></div></div>
+        <span class="dur">${fmt(edit)}</span>
+        <div class="barwrap">${edit!=null?`<div class="bar cyan" style="width:${pct(edit)}%"></div>`:''}</div>
       </div>`;
 
     let extRow = '';
-    if(tk.state === 'none'){
-      extRow = `
-      <div class="row">
-        <span class="k" style="color:var(--muted-2)">extended</span>
-        <span class="dur" style="color:var(--muted-2)">&mdash;</span>
-        <div class="barwrap"></div>
-      </div>`;
-    } else {
-      const delta = tk.ext - tk.edit;
+    if(st==='pending'){
       extRow = `
       <div class="row">
         <span class="k">extended</span>
-        <span class="dur">${fmt(tk.ext)}</span>
+        <span class="dur" style="color:var(--muted-2)">···</span>
+        <div class="barwrap"><div class="searching-bar"></div></div>
+      </div>`;
+    } else if(st==='none'){
+      extRow = `
+      <div class="row">
+        <span class="k" style="color:var(--muted-2)">extended</span>
+        <span class="dur" style="color:var(--muted-2)">—</span>
+        <div class="barwrap"></div>
+      </div>`;
+    } else {
+      const ext = tk.chosen_seconds;
+      const base = edit!=null ? pct(edit) : 0;
+      const delta = (edit!=null && ext!=null) ? (ext-edit) : null;
+      extRow = `
+      <div class="row">
+        <span class="k">extended</span>
+        <span class="dur">${fmt(ext)}</span>
         <div class="barwrap">
-          <div class="bar ext-base" style="width:0%" data-w="${pct(tk.edit)}"></div>
-          <div class="bar ext-delta" style="left:${pct(tk.edit)}%;width:0%" data-w="${pct(tk.ext)-pct(tk.edit)}"></div>
-          <div class="delta-tag" style="left:calc(${pct(tk.ext)}% + 6px)">+${fmt(delta)}</div>
+          ${edit!=null?`<div class="bar ext-base" style="width:${base}%"></div>`:''}
+          ${ext!=null?`<div class="bar ext-delta" style="left:${base}%;width:${Math.max(0,pct(ext)-base)}%"></div>`:''}
+          ${delta!=null?`<div class="delta-tag on" style="left:calc(${pct(ext)}% + 6px)">+${fmt(delta)}</div>`:''}
         </div>
       </div>`;
     }
 
     let chip = '';
-    if(tk.state==='strong') chip = `<span class="chip strong"><span class="cd"></span>Strong match &middot; ${tk.conf}%</span>`;
-    if(tk.state==='review') chip = `<span class="chip review"><span class="cd"></span>Review</span>`;
-    if(tk.state==='none') chip = `<span class="chip none"><span class="cd"></span>No extended found</span>`;
+    if(st==='pending') chip = `<span class="chip searching"><span class="cd"></span>Searching…</span>`;
+    if(st==='strong')  chip = `<span class="chip strong"><span class="cd"></span>Strong match &middot; ${Math.round((tk.confidence||0)*100)}%</span>`;
+    if(st==='review')  chip = `<span class="chip review"><span class="cd"></span>Review</span>`;
+    if(st==='none')    chip = `<span class="chip none"><span class="cd"></span>No extended found</span>`;
 
     let body = '';
-    if(tk.state==='strong'){
+    if(st==='strong'){
+      const url = `https://www.youtube.com/watch?v=${encodeURIComponent(tk.chosen_youtube_id)}`;
       body = `
       <div class="match">
         <div class="yt">
           <span class="play"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span>
           <div class="meta">
-            <div class="m1">${tk.yt}</div>
-            <div class="m2"><span class="ch">${tk.ch}</span> &middot; ${fmt(tk.ext)} &middot; youtube.com</div>
+            <div class="m1">${esc(tk.chosen_title)}</div>
+            <div class="m2"><span class="ch">${esc(tk.chosen_channel)}</span> &middot; ${fmt(tk.chosen_seconds)} &middot; youtube.com</div>
           </div>
         </div>
         <div class="actions">
-          <a class="link" href="#" onclick="return false">Open &#8599;</a>
-          <label class="inc"><input type="checkbox" checked class="incbox"> include</label>
+          <a class="link" href="${url}" target="_blank" rel="noopener">Open &#8599;</a>
+          <label class="inc"><input type="checkbox" checked class="incbox" data-yt="${esc(tk.chosen_youtube_id)}"> include</label>
         </div>
       </div>
-      <div class="reason"><span class="qi">&#9672;</span><b>${tk.reason}</b></div>`;
-    } else if(tk.state==='review'){
-      body = `<div class="cands">` + tk.cands.map((c,ci)=>`
-        <div class="cand ${c.pick?'pick':''}" data-track="${tk.i}" data-ci="${ci}">
+      ${tk.reason?`<div class="reason"><span class="qi">&#9672;</span><b>${esc(tk.reason)}</b></div>`:''}`;
+    } else if(st==='review'){
+      const cands = Array.isArray(tk.candidates) ? tk.candidates.filter(c=>c.seconds) : [];
+      const shown = cands.slice(0,4);
+      body = `<div class="cands">` + shown.map(c=>`
+        <div class="cand ${c.youtube_id===tk.chosen_youtube_id?'pick':''}" data-yt="${esc(c.youtube_id)}" data-sec="${c.seconds}">
           <span class="radio"></span>
-          <div class="cinfo"><div class="c1">${c.c1}</div><div class="c2">${c.c2}</div></div>
-          <span class="cdur">${fmt(c.dur)}</span>
+          <div class="cinfo"><div class="c1">${esc(c.title)}</div><div class="c2">${esc(c.channel)}</div></div>
+          <span class="cdur">${fmt(c.seconds)}</span>
         </div>`).join('') + `</div>
-        <div class="reason"><span class="qi">&#9672;</span><b>${tk.reason}</b></div>`;
-    } else if(tk.state==='none'){
+        ${tk.reason?`<div class="reason"><span class="qi">&#9672;</span><b>${esc(tk.reason)}</b></div>`:''}`;
+    } else if(st==='none'){
       body = `<div class="none-note">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
-        No extended version exists &mdash; the radio edit is the only upload found. Skipped from the playlist.
+        ${tk.reason?esc(tk.reason):'No extended version found — the radio edit is the only upload. Skipped from the playlist.'}
       </div>`;
     }
 
     return `
-    <div class="track ${tk.state}" data-i="${tk.i}">
+    <div class="track ${st} shown" data-i="${i}">
       <div class="track-head">
-        <span class="idx">${String(tk.i).padStart(2,'0')}</span>
-        <div class="titles"><div class="t">${tk.t}</div><div class="a">${tk.a}</div></div>
+        <span class="idx">${String(i).padStart(2,'0')}</span>
+        <div class="titles"><div class="t">${esc(tk.title)||'(untitled)'}</div><div class="a">${esc(tk.artist)||'&nbsp;'}</div></div>
         ${chip}
       </div>
       <div class="timeline">${editRow}${extRow}</div>
@@ -387,73 +412,137 @@
     </div>`;
   }
 
-  list.innerHTML = tracks.map(trackHTML).join('');
-
-  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const qfill = document.getElementById('qfill');
-  const qnum = document.getElementById('qnum');
-  const worker = document.getElementById('worker');
-  const wnow = document.getElementById('wnow');
-  const wcount = document.getElementById('wcount');
-
-  function fillBars(el){
-    el.querySelectorAll('.bar').forEach(b=>{
-      const w = b.getAttribute('data-w');
-      if(w!==null) requestAnimationFrame(()=> b.style.width = w + '%');
-    });
-    const dt = el.querySelector('.delta-tag');
-    if(dt) setTimeout(()=> dt.classList.add('on'), 300);
+  function render(tracks){
+    list.innerHTML = tracks.map(trackHTML).join('');
+    updateDock();
   }
-  function setQuota(units){
-    qnum.textContent = units.toLocaleString();
-    qfill.style.width = Math.min(100,(units/10000)*100) + '%';
+
+  // Which tracks are selected for the playlist, and how much time they add.
+  function collectSelection(){
+    const items = [];
+    let addedSeconds = 0;
+    for(const tk of currentTracks){
+      const i = (tk.position ?? 0) + 1;
+      const el = document.querySelector(`.track[data-i="${i}"]`);
+      if(!el) continue;
+      if(tk.state==='strong'){
+        const box = el.querySelector('.incbox');
+        if(box && box.checked){
+          items.push({ youtube_id: tk.chosen_youtube_id });
+          if(tk.edit_seconds!=null && tk.chosen_seconds!=null) addedSeconds += Math.max(0, tk.chosen_seconds - tk.edit_seconds);
+        }
+      } else if(tk.state==='review'){
+        const pick = el.querySelector('.cand.pick');
+        if(pick){
+          items.push({ youtube_id: pick.getAttribute('data-yt') });
+          const sec = parseInt(pick.getAttribute('data-sec')||'0',10);
+          if(tk.edit_seconds!=null && sec) addedSeconds += Math.max(0, sec - tk.edit_seconds);
+        }
+      }
+    }
+    return { items, addedSeconds };
   }
-  function run(){
-    const els = [...document.querySelectorAll('.track')];
-    els.forEach(e=>{ e.classList.remove('shown'); e.querySelectorAll('.bar').forEach(b=>b.style.width='0%'); e.querySelectorAll('.delta-tag').forEach(d=>d.classList.remove('on')); });
+
+  function updateDock(){
+    const total = currentTracks.length;
+    const found = currentTracks.filter(t=>t.state==='strong'||t.state==='review').length;
+    const { items, addedSeconds } = collectSelection();
+    document.getElementById('sel').textContent = items.length;
+    document.querySelector('.summary b:nth-of-type(2)').textContent = total;
+    document.getElementById('added').textContent = `+${fmt(addedSeconds)} added`;
+    document.getElementById('qest').textContent = `${found} extended mix${found===1?'':'es'} found`;
+  }
+
+  async function postJSON(url, body){
+    const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    return r.json();
+  }
+
+  function showError(msg){
+    worker.classList.remove('live');
+    wnow.textContent = 'Error: ' + msg;
+    wcount.textContent = '';
+  }
+
+  async function findExtended(){
+    const text = document.getElementById('tracksin').value.trim();
+    if(!text){ document.getElementById('tracksin').focus(); return; }
+
+    findBtn.disabled = true;
     setQuota(0);
+    let quotaUnits = 0;
     worker.classList.add('live');
+    wnow.textContent = 'creating job…';
+    wcount.textContent = '';
+    list.innerHTML = '';
 
-    if(reduce){
-      els.forEach(e=>{ e.classList.add('shown'); fillBars(e); });
-      setQuota(840); wnow.textContent='6 of 6 done'; wcount.textContent='5 / 6 matched';
-      worker.classList.remove('live'); return;
+    let created;
+    try { created = await postJSON('/api/create-job', { text }); }
+    catch { showError('could not reach the server.'); findBtn.disabled=false; return; }
+    if(created.error){ showError(created.error); findBtn.disabled=false; return; }
+
+    const jobId = created.jobId;
+    currentTracks = created.tracks.map(t => ({ ...t, state:'pending' }));
+    render(currentTracks);
+    wcount.textContent = `0 / ${currentTracks.length} matched`;
+
+    let done = false;
+    while(!done){
+      wnow.textContent = 'ranking candidates by duration + title';
+      let w;
+      try { w = await postJSON('/api/worker', { jobId }); }
+      catch { showError('worker request failed.'); break; }
+      if(w.error){ showError(w.error); break; }
+
+      quotaUnits += (w.unitsUsed || 0);
+      setQuota(quotaUnits);
+      done = !!w.done;
+
+      let st;
+      try { st = await fetch(`/api/job-status?jobId=${encodeURIComponent(jobId)}`).then(r=>r.json()); }
+      catch { continue; }
+      if(st && !st.error){
+        currentTracks = st.tracks;
+        render(currentTracks);
+        const matched  = currentTracks.filter(t=>t.state==='strong'||t.state==='review').length;
+        const resolved = currentTracks.filter(t=>t.state!=='pending').length;
+        wcount.textContent = `${matched} / ${currentTracks.length} matched`;
+        wnow.textContent = done ? `${currentTracks.length} of ${currentTracks.length} done`
+                                : `track ${Math.min(resolved+1, currentTracks.length)} of ${currentTracks.length}`;
+      }
     }
 
-    let units = 0, done = 0, matched = 0;
-    els.forEach((e,idx)=>{
-      setTimeout(()=>{
-        e.classList.add('shown'); fillBars(e); done++;
-        units += 100 + (tracks[idx].state==='review'?100:0);
-        setQuota(units);
-        if(tracks[idx].state==='strong'||tracks[idx].state==='review') matched++;
-        wnow.textContent = done<els.length ? `track ${done+1} of ${els.length}` : `${els.length} of ${els.length} done`;
-        wcount.textContent = `${matched} / ${els.length} matched`;
-        if(done===els.length){ setTimeout(()=> worker.classList.remove('live'), 400); }
-      }, 350 + idx*520);
-    });
+    worker.classList.remove('live');
+    findBtn.disabled = false;
   }
 
+  // Pick a candidate within a review track.
   list.addEventListener('click', e=>{
     const cand = e.target.closest('.cand');
     if(!cand) return;
     cand.closest('.cands').querySelectorAll('.cand').forEach(c=>c.classList.remove('pick'));
     cand.classList.add('pick');
+    updateDock();
   });
-  function updateSel(){
-    const n = document.querySelectorAll('.incbox:checked').length + 1;
-    document.getElementById('sel').textContent = n;
-  }
-  list.addEventListener('change', e=>{ if(e.target.classList.contains('incbox')) updateSel(); });
+  list.addEventListener('change', e=>{ if(e.target.classList.contains('incbox')) updateDock(); });
 
-  const toast = document.getElementById('toast');
+  // Playlist creation is the next step (YouTube OAuth) — be honest, don't fake success.
   document.getElementById('create').addEventListener('click', ()=>{
-    toast.classList.add('on');
-    setTimeout(()=> toast.classList.remove('on'), 3800);
+    const { items } = collectSelection();
+    document.querySelector('#toast .tt').textContent = 'Playlist creation is the next step';
+    document.querySelector('#toast .ts').textContent =
+      `${items.length} track${items.length===1?'':'s'} selected · YouTube sign-in + playlist build isn't wired up yet`;
+    document.querySelector('#toast').classList.add('on');
+    setTimeout(()=> document.querySelector('#toast').classList.remove('on'), 3800);
   });
-  document.getElementById('find').addEventListener('click', run);
-  document.getElementById('rerun').addEventListener('click', run);
-  run();
+
+  findBtn.addEventListener('click', findExtended);
+
+  // Idle state on load.
+  worker.classList.remove('live');
+  wnow.textContent = 'paste a tracklist and hit Find';
+  wcount.textContent = '';
+  updateDock();
 </script>
 </body>
 </html>

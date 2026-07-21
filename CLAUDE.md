@@ -16,12 +16,19 @@ API docs, and developers.soundcloud.com before relying on a specific figure.
 
 ## What it does (pipeline)
 
-1. User pastes a **SoundCloud playlist URL** of radio edits.
-2. Backend resolves the playlist → tracklist (artist, title, edit duration in seconds).
+1. User **pastes a tracklist** (one `Artist - Title` per line; optional trailing duration like `3:45`).
+2. Backend parses the text → tracklist (artist, title, optional edit duration in seconds).
 3. For each track: search YouTube for extended-version candidates.
 4. A **TrackFinder worker** (Claude, via the Anthropic API) ranks the candidates and picks the genuine extended version
    (or returns "none found").
 5. Results shown on the page; user can select tracks and build a YouTube playlist of them.
+
+> **Input decision (2026-07-21):** the original plan was to paste a **SoundCloud playlist URL** and
+> resolve it via the SoundCloud API. We backed out of that: SoundCloud's API Terms of Use prohibit
+> "playlist or library transfer services" without explicit approval, and TrackFinder is arguably
+> adjacent. Scraping the site is worse (violates site terms + the "no internal v2 endpoints" rule).
+> So input is now a **manual paste**. The verified SoundCloud API notes below are kept for reference
+> in case we later seek approval, but are **not currently used**.
 
 The star signal is **duration**. Radio edit ≈ 3–4 min; a real extended/club mix ≈ 6–8 min.
 The chosen result should be meaningfully *longer* than the edit but not absurdly so (a 1-hour
@@ -47,7 +54,7 @@ have the front-end poll job status.
 
 ## API facts (verified)
 
-### SoundCloud — input
+### SoundCloud — input  (NOT CURRENTLY USED — see "Input decision" above)
 - **We HAVE a SoundCloud Artist Pro account.** That's the tier required to register an app, so use the
   **official API** — don't fall back to scraping or the internal v2 endpoints.
 - Register app at developers.soundcloud.com → get `client_id` + `client_secret`. OAuth 2.1 (PKCE).
@@ -55,6 +62,20 @@ have the front-end poll job status.
   user login). Use that for playlist resolution + track search.
 - Fallback if the developer portal is ever closed: the credential-free **oEmbed** endpoint resolves
   public track URLs. Prefer the real API while we have Artist Pro.
+
+- **Verified details (July 2026 — corrections to the notes above):**
+  - Token endpoint is `POST https://secure.soundcloud.com/oauth/token` with `grant_type=client_credentials`,
+    authenticated by **HTTP Basic** (`Authorization: Basic base64(client_id:client_secret)`). PKCE is NOT
+    used for this app-level flow — PKCE only applies to the user authorization-code flow (e.g. YouTube consent).
+  - API calls use header **`Authorization: OAuth <token>`** (the `OAuth` scheme, NOT `Bearer`).
+  - Resolve a playlist: `GET https://api.soundcloud.com/resolve?url=<playlist-url>` → playlist resource
+    with a `tracks` array. Track `title` is often `"Artist - Title"`; split on the first `" - "`, else
+    fall back to `user.username` as the artist.
+  - **Durations are in MILLISECONDS** — divide by 1000 for our `edit_seconds`/`chosen_seconds`. Some
+    tracks report `duration: 0` (known quirk); treat as unknown.
+  - **Token creation is rate-limited (50 tokens / 12h per app).** MUST cache the access token and reuse
+    it until expiry — we cache it in the `connections` table (`user_id='app'`, `provider='soundcloud'`).
+    Never mint a token per request.
 
 ### YouTube Data API v3 — search + output
 - Free, but **quota-limited: 10,000 units/day per Google Cloud project** (resets midnight PT).
@@ -108,14 +129,18 @@ have the front-end poll job status.
 
 ## Build order (suggested)
 
-1. Add `.gitignore` (node_modules, .env, .vercel).
-2. Supabase project + the tables above.
-3. `/api/resolve-playlist` — SoundCloud URL → tracklist (Client Credentials).
-4. `/api/worker` — per track: check cache → `search.list` → batch `videos.list` for durations →
-   Claude ranks → write result + cache. Queue/batch it.
-5. Wire the front-end (`index.html`) to real job data (replace the mock `tracks` array + fake timers
-   with a create-job call + polling).
-6. YouTube OAuth + `/api/create-playlist` (gated behind consent + confirm).
+1. ✅ Add `.gitignore` (node_modules, .env, .vercel).
+2. ✅ Supabase project + the tables above.
+3. ✅ `/api/create-job` — pasted tracklist → parsed tracks → `jobs` + `tracks` rows.
+   (Was `/api/resolve-playlist` via SoundCloud; changed to manual paste — see "Input decision".)
+4. ✅ `/api/worker` — per track: check cache → `search.list` → batch `videos.list` for durations →
+   Claude ranks (`claude-haiku-4-5`, structured output) → write result + cache. Batched; caller
+   re-invokes until `remaining=0`. Plus `/api/job-status` for polling.
+5. ✅ Wire the front-end (`index.html`) to real job data — paste box → create-job → worker batches →
+   poll. Mock `tracks` array + fake timers removed.
+6. ⛔ YouTube OAuth + `/api/create-playlist` (gated behind consent + confirm) — HELD until the
+   read/search pipeline is verified end to end with live keys (per the "don't build playlist
+   creation until read/search works" rule + the side-effect gate).
 
 ---
 
