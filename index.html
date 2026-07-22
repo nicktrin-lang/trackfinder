@@ -94,6 +94,12 @@
   .plname:focus{border-color:var(--cyan);}
   #connect.connected{color:var(--green);border-color:rgba(86,209,134,.4);cursor:default;}
 
+  .addbtn{font-family:var(--mono);font-size:12px;font-weight:700;border-radius:8px;padding:8px 13px;
+    cursor:pointer;border:1px solid var(--line);background:transparent;color:var(--muted);
+    white-space:nowrap;transition:.15s;}
+  .addbtn:hover{border-color:var(--muted-2);color:var(--text);}
+  .addbtn.added{background:rgba(86,209,134,.12);border-color:rgba(86,209,134,.45);color:var(--green);}
+
   .worker{display:flex;align-items:center;gap:12px;margin:26px 0 6px;
     font-family:var(--mono);font-size:12px;color:var(--muted);}
   .worker .dot{width:8px;height:8px;border-radius:99px;background:var(--violet);flex:none;}
@@ -386,7 +392,7 @@
         </div>
         <div class="actions">
           <a class="link" href="${url}" target="_blank" rel="noopener">Open &#8599;</a>
-          <label class="inc"><input type="checkbox" checked class="incbox" data-yt="${esc(tk.chosen_youtube_id)}"> include</label>
+          <button type="button" class="addbtn added" data-yt="${esc(tk.chosen_youtube_id)}">&#10003; Added to playlist</button>
         </div>
       </div>
       ${tk.reason?`<div class="reason"><span class="qi">&#9672;</span><b>${esc(tk.reason)}</b></div>`:''}`;
@@ -433,8 +439,8 @@
       const el = document.querySelector(`.track[data-i="${i}"]`);
       if(!el) continue;
       if(tk.state==='strong'){
-        const box = el.querySelector('.incbox');
-        if(box && box.checked){
+        const btn = el.querySelector('.addbtn');
+        if(btn && btn.classList.contains('added')){
           items.push({ youtube_id: tk.chosen_youtube_id });
           if(tk.edit_seconds!=null && tk.chosen_seconds!=null) addedSeconds += Math.max(0, tk.chosen_seconds - tk.edit_seconds);
         }
@@ -458,6 +464,8 @@
     document.querySelector('.summary b:nth-of-type(2)').textContent = total;
     document.getElementById('added').textContent = `+${fmt(addedSeconds)} added`;
     document.getElementById('qest').textContent = `${found} extended mix${found===1?'':'es'} found`;
+    const createEl = document.getElementById('create');
+    if(createEl) createEl.disabled = items.length === 0;
   }
 
   async function postJSON(url, body){
@@ -531,7 +539,14 @@
     cand.classList.add('pick');
     updateDock();
   });
-  list.addEventListener('change', e=>{ if(e.target.classList.contains('incbox')) updateDock(); });
+  // Toggle a found track in/out of the playlist.
+  list.addEventListener('click', e=>{
+    const btn = e.target.closest('.addbtn');
+    if(!btn) return;
+    const on = btn.classList.toggle('added');
+    btn.innerHTML = on ? '&#10003; Added to playlist' : '&#43; Add to playlist';
+    updateDock();
+  });
 
   // ---- YouTube connection + playlist creation (step 6) ----
   const connectBtn = document.getElementById('connect');
