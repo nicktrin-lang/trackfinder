@@ -9,6 +9,11 @@ import { supabase } from './supabase.js';
 import { findCandidates, normalizeKey } from './youtube.js';
 import { rankCandidates, STRONG_THRESHOLD } from './ranker.js';
 
+// Picks longer than this are likely continuous DJ mixes / loops / fan re-edits,
+// not a single official extended version. We never mark them "strong" — they
+// drop to "review" so the user decides, no matter how confident the ranker was.
+const LONG_UPLOAD_SECONDS = 12 * 60;
+
 // Get candidates for a track, using the Supabase cache to avoid re-searching.
 // Returns { candidates, unitsUsed }.
 async function getCandidatesCached(artist, title) {
@@ -59,8 +64,9 @@ async function processTrack(track) {
     };
   } else {
     const chosen = candidates.find((c) => c.youtube_id === ranked.youtube_id);
+    const tooLong = chosen?.seconds != null && chosen.seconds > LONG_UPLOAD_SECONDS;
     update = {
-      state: ranked.confidence >= STRONG_THRESHOLD ? 'strong' : 'review',
+      state: (ranked.confidence >= STRONG_THRESHOLD && !tooLong) ? 'strong' : 'review',
       chosen_youtube_id: ranked.youtube_id,
       chosen_seconds: chosen?.seconds ?? null,
       chosen_title: chosen?.title ?? null,

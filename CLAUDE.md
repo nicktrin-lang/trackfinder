@@ -4,7 +4,7 @@ Find the **extended / club versions** of songs that exist only as short radio ed
 SoundCloud playlist, then present them (and optionally build a YouTube playlist of the long ones).
 
 - **Repo:** github.com/nicktrin-lang/trackfinder
-- **Live:** trackfinder-nine.vercel.app (auto-deploys on push to `main`)
+- **Live:** trackfinder-1.vercel.app (auto-deploys on push to `main`)
 - **Current state:** front-end mockup only (`index.html`). It plays back fake data. The job now is
   to build the real backend so the page does what it pretends to do.
 

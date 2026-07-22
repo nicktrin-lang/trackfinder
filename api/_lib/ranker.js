@@ -32,16 +32,18 @@ const OUTPUT_SCHEMA = {
 
 const SYSTEM = `You identify the genuine EXTENDED / CLUB version of a song from a list of YouTube candidates.
 
-The user gives you a radio-edit track (artist, title, and its duration in seconds if known) plus candidate YouTube videos (id, title, channel, duration in seconds).
+The user gives you a track (artist, title, and its radio-edit duration in seconds IF known — it often isn't) plus candidate YouTube videos (id, title, channel, duration in seconds).
 
-Rules:
-- The key signal is DURATION. A radio edit is typically ~3-4 min (180-260s). A real extended/club mix is typically ~6-8 min (360-500s).
-- Pick the candidate that is meaningfully LONGER than the edit but not absurdly so. A ~15+ min or 1-hour upload is a loop/continuous mix, not a single extended version — reject it.
-- Prefer titles that say "Extended Mix", "Club Mix", "Extended", "12\\" ", or an official/label channel. But do not force a match on the word alone — judge by structure and duration together.
-- The artist and title must actually match the requested track. Reject unrelated songs, covers, karaoke, sped-up/nightcore, and reaction videos.
-- If no candidate is a genuine longer version (e.g. only the radio edit exists), return found=false. This is a valid, expected answer — do NOT force a bad match.
+How to decide (title/channel signals matter as much as duration):
+- A strong match is a candidate whose title explicitly says "Extended Mix", "Club Mix", "Extended", "Extended Version", "12\\"", or "Dub", AND whose artist + title clearly match the requested track. An official or "- Topic" (auto-generated official) channel makes it stronger. When those signals are present, it IS the extended version even if it's only ~5-6 minutes — many modern extended mixes run 5-6 min. Do NOT reject a clearly-labelled official Extended Mix just for being under 6 minutes.
+- Duration is a supporting signal, not a gate. A real extended/club mix is usually ~5-9 min. If the radio-edit duration is known, the pick should be meaningfully longer than it. If it's unknown, lean on the title/channel signals plus relative length among the candidates (an extended mix is longer than a plausible ~3-4 min edit).
+- Be skeptical of very long uploads (roughly >12 min): these are often continuous DJ mixes, loops, or fan re-edits, not a single official extended version. Prefer an official-length extended (~5-9 min) over the absolute longest result. If ONLY a very long one exists and it looks like a loop/mix, either reject it or return it with LOW confidence (a "review", not a confident pick).
+- The artist and title must actually match. Reject unrelated songs, live performances, covers, karaoke, sped-up/nightcore, and reaction videos, even if long.
+- If no candidate is a genuine extended version (only the standard/radio release exists, or nothing relevant was found), return found=false. This is a valid, expected answer — do NOT force a bad match.
 
-Return: found (bool), youtube_id (the chosen candidate's id, or "" if none), confidence (0.0-1.0), reason (one short sentence, referencing the durations).`;
+Confidence guide: >=0.85 when the title explicitly says Extended/Club Mix and the artist+title+channel clearly match; 0.5-0.8 when it's plausibly the long version but ambiguous (unofficial channel, borderline length); found=false when nothing genuine.
+
+Return: found (bool), youtube_id (the chosen candidate's id, or "" if none), confidence (0.0-1.0), reason (one short sentence citing the title label and duration).`;
 
 // candidates: [{ youtube_id, title, channel, seconds }]
 // Returns { found, youtube_id, confidence, reason }.

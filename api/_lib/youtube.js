@@ -83,11 +83,23 @@ async function fetchDurations(ids, key) {
   return durations;
 }
 
+// Strip SoundCloud/promo noise from a title before searching, so a pasted
+// "All Good? (Likke Edit) [Supported by Marco Carola]" doesn't poison the query.
+// (Display keeps the original title; only the search query is cleaned.)
+export function cleanForSearch(text) {
+  return (text ?? '')
+    .replace(/\[[^\]]*\]/g, ' ')                 // [Supported by ...], [House], [Free Download]
+    .replace(/\b(free\s+download|out\s+now|premiere|supported\s+by[^)]*)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 // Full candidate fetch for one track: search + durations.
 // Returns { candidates: [{ youtube_id, title, channel, seconds }], unitsUsed }.
 export async function findCandidates(artist, title) {
   const key = requireKey();
-  const query = [artist, title, 'extended'].filter(Boolean).join(' ').trim();
+  const query = [cleanForSearch(artist), cleanForSearch(title), 'extended']
+    .filter(Boolean).join(' ').trim();
 
   const found = await searchVideos(query, key);           // 100 units
   let unitsUsed = 100;
