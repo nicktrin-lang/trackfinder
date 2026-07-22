@@ -286,16 +286,10 @@
 
 <div class="dock">
   <div class="dock-inner">
-    <div class="summary">
-      <b id="sel">0</b> of <b>0</b> extended mixes selected&nbsp;&middot;&nbsp;<span class="amberv" id="added">+0:00 added</span><br>
-      <span id="qest">0 extended mixes found</span>
-    </div>
+    <div class="summary" id="plstatus">No playlist yet — add a song to start one.</div>
     <input id="plname" class="plname" type="text" placeholder="Playlist name (optional)" aria-label="Playlist name" />
     <button class="btn btn-ghost" id="connect">Connect YouTube</button>
-    <button class="btn btn-primary" id="create">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14M12 5v14"/></svg>
-      Create YouTube playlist
-    </button>
+    <button class="btn btn-ghost" id="newpl">New playlist</button>
   </div>
 </div>
 
@@ -392,7 +386,7 @@
         </div>
         <div class="actions">
           <a class="link" href="${url}" target="_blank" rel="noopener">Open &#8599;</a>
-          <button type="button" class="addbtn added" data-yt="${esc(tk.chosen_youtube_id)}">&#10003; Added to playlist</button>
+          <button type="button" class="addbtn" data-yt="${esc(tk.chosen_youtube_id)}">&#43; Add to playlist</button>
         </div>
       </div>
       ${tk.reason?`<div class="reason"><span class="qi">&#9672;</span><b>${esc(tk.reason)}</b></div>`:''}`;
@@ -405,7 +399,10 @@
           <div class="cinfo"><div class="c1">${esc(c.title)}</div><div class="c2">${esc(c.channel)}</div></div>
           <span class="cdur">${fmt(c.seconds)}</span>
         </div>`).join('') + `</div>
-        ${tk.reason?`<div class="reason"><span class="qi">&#9672;</span><b>${esc(tk.reason)}</b></div>`:''}`;
+        ${tk.reason?`<div class="reason"><span class="qi">&#9672;</span><b>${esc(tk.reason)}</b></div>`:''}
+        <div class="actions" style="margin-top:12px;justify-content:flex-end;">
+          <button type="button" class="addbtn" data-review="1">&#43; Add picked version</button>
+        </div>`;
     } else if(st==='none'){
       body = `<div class="none-note">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
@@ -427,45 +424,27 @@
 
   function render(tracks){
     list.innerHTML = tracks.map(trackHTML).join('');
-    updateDock();
   }
 
-  // Which tracks are selected for the playlist, and how much time they add.
-  function collectSelection(){
-    const items = [];
-    let addedSeconds = 0;
-    for(const tk of currentTracks){
-      const i = (tk.position ?? 0) + 1;
-      const el = document.querySelector(`.track[data-i="${i}"]`);
-      if(!el) continue;
-      if(tk.state==='strong'){
-        const btn = el.querySelector('.addbtn');
-        if(btn && btn.classList.contains('added')){
-          items.push({ youtube_id: tk.chosen_youtube_id });
-          if(tk.edit_seconds!=null && tk.chosen_seconds!=null) addedSeconds += Math.max(0, tk.chosen_seconds - tk.edit_seconds);
-        }
-      } else if(tk.state==='review'){
-        const pick = el.querySelector('.cand.pick');
-        if(pick){
-          items.push({ youtube_id: pick.getAttribute('data-yt') });
-          const sec = parseInt(pick.getAttribute('data-sec')||'0',10);
-          if(tk.edit_seconds!=null && sec) addedSeconds += Math.max(0, sec - tk.edit_seconds);
-        }
-      }
+  // The current target playlist for this session (persisted across reloads).
+  let playlist = null; // { playlistId, url, title, count }
+  function savePlaylist(){
+    try { playlist ? localStorage.setItem('tf_playlist', JSON.stringify(playlist)) : localStorage.removeItem('tf_playlist'); }
+    catch {}
+  }
+  function loadPlaylist(){
+    try { playlist = JSON.parse(localStorage.getItem('tf_playlist') || 'null'); } catch { playlist = null; }
+  }
+  function updatePlStatus(){
+    const el = document.getElementById('plstatus');
+    if(!el) return;
+    if(playlist){
+      el.innerHTML = `Playlist: <b>${esc(playlist.title)}</b> &middot; <b>${playlist.count}</b> track${playlist.count===1?'':'s'} &middot; ` +
+        `<a href="${playlist.url}" target="_blank" rel="noopener" style="color:var(--cyan)">open &#8599;</a>`;
+    } else {
+      el.textContent = ytConnected ? 'No playlist yet — add a song to start one.'
+                                   : 'Connect YouTube, then add songs to build a playlist.';
     }
-    return { items, addedSeconds };
-  }
-
-  function updateDock(){
-    const total = currentTracks.length;
-    const found = currentTracks.filter(t=>t.state==='strong'||t.state==='review').length;
-    const { items, addedSeconds } = collectSelection();
-    document.getElementById('sel').textContent = items.length;
-    document.querySelector('.summary b:nth-of-type(2)').textContent = total;
-    document.getElementById('added').textContent = `+${fmt(addedSeconds)} added`;
-    document.getElementById('qest').textContent = `${found} extended mix${found===1?'':'es'} found`;
-    const createEl = document.getElementById('create');
-    if(createEl) createEl.disabled = items.length === 0;
   }
 
   async function postJSON(url, body){
@@ -531,33 +510,60 @@
     findBtn.disabled = false;
   }
 
-  // Pick a candidate within a review track.
+  // Pick a candidate within a review track (and re-enable its add button).
   list.addEventListener('click', e=>{
     const cand = e.target.closest('.cand');
     if(!cand) return;
     cand.closest('.cands').querySelectorAll('.cand').forEach(c=>c.classList.remove('pick'));
     cand.classList.add('pick');
-    updateDock();
+    const btn = cand.closest('.track')?.querySelector('.addbtn');
+    if(btn){ btn.classList.remove('added'); btn.disabled = false; btn.innerHTML = '&#43; Add picked version'; }
   });
-  // Toggle a found track in/out of the playlist.
+
+  // "Add to playlist" — live: creates the playlist on first add, then appends.
   list.addEventListener('click', e=>{
     const btn = e.target.closest('.addbtn');
     if(!btn) return;
-    const on = btn.classList.toggle('added');
-    btn.innerHTML = on ? '&#10003; Added to playlist' : '&#43; Add to playlist';
-    updateDock();
+    let yt = btn.getAttribute('data-yt');
+    if(!yt){ // review track: use the currently-picked candidate
+      const pick = btn.closest('.track')?.querySelector('.cand.pick');
+      yt = pick ? pick.getAttribute('data-yt') : null;
+    }
+    if(!yt){ flashToast('Pick a version first', 'Choose one of the candidates, then add it.'); return; }
+    addSong(btn, yt);
   });
+
+  async function addSong(btn, videoId){
+    if(!videoId || btn.classList.contains('added')) return;
+    if(!ytConnected){ flashToast('Connect YouTube first', 'Click “Connect YouTube”, approve access, then add songs.'); return; }
+    btn.disabled = true;
+    const prev = btn.innerHTML;
+    btn.innerHTML = 'Adding…';
+    try {
+      // Create the playlist on the first add.
+      if(!playlist){
+        const name = (document.getElementById('plname').value.trim() || defaultName()).slice(0,150);
+        const c = await postJSON('/api/create-playlist', { title: name });
+        if(c.error){ if(c.needsAuth) setConnected(false); flashToast('Could not create playlist', c.error, 8000); btn.disabled=false; btn.innerHTML=prev; return; }
+        playlist = { playlistId: c.playlistId, url: c.url, title: name, count: 0 };
+        savePlaylist(); updatePlStatus();
+      }
+      const a = await postJSON('/api/add-to-playlist', { playlistId: playlist.playlistId, videoId });
+      if(a.error){ if(a.needsAuth) setConnected(false); flashToast('Could not add song', a.error, 8000); btn.disabled=false; btn.innerHTML=prev; return; }
+      playlist.count += 1; savePlaylist(); updatePlStatus();
+      btn.classList.add('added'); btn.innerHTML = '&#10003; Added';   // stays disabled to prevent double-add
+    } catch { flashToast('Request failed', 'Could not reach the server.'); btn.disabled=false; btn.innerHTML=prev; }
+  }
 
   // ---- YouTube connection + playlist creation (step 6) ----
   const connectBtn = document.getElementById('connect');
-  const createBtn  = document.getElementById('create');
-  const plname     = document.getElementById('plname');
   let ytConnected = false;
 
   function setConnected(v){
     ytConnected = v;
     connectBtn.textContent = v ? 'YouTube connected ✓' : 'Connect YouTube';
     connectBtn.classList.toggle('connected', v);
+    updatePlStatus();
   }
   async function refreshConnection(){
     try { const r = await fetch('/api/youtube-connection').then(r=>r.json()); setConnected(!!r.connected); }
@@ -581,31 +587,11 @@
     window.location.href = '/api/auth/youtube-start';
   });
 
-  createBtn.addEventListener('click', async ()=>{
-    const { items } = collectSelection();
-    if(items.length===0){ flashToast('Nothing selected', 'Pick at least one track to include.'); return; }
-    if(!ytConnected){ flashToast('Connect YouTube first', 'Click “Connect YouTube”, approve access, then try again.'); return; }
-
-    const name = (plname.value.trim() || defaultName()).slice(0,150);
-    // Explicit confirm — this writes to YOUR YouTube account (as a private playlist).
-    if(!window.confirm(`Create the playlist “${name}” with ${items.length} track${items.length===1?'':'s'} on your YouTube account?\n\nIt will be created as PRIVATE.`)) return;
-
-    createBtn.disabled = true;
-    const prev = createBtn.innerHTML;
-    createBtn.textContent = 'Creating…';
-    try {
-      const r = await postJSON('/api/create-playlist', { title:name, videoIds: items.map(i=>i.youtube_id) });
-      if(r.error){
-        if(r.needsAuth){ setConnected(false); flashToast('Reconnect needed', r.error); }
-        else flashToast('Could not create playlist', r.error);
-      } else {
-        document.querySelector('#toast .tt').textContent = `Playlist created — “${name}”`;
-        document.querySelector('#toast .ts').innerHTML =
-          `${r.added} track${r.added===1?'':'s'} added · <a href="${r.url}" target="_blank" rel="noopener" style="color:var(--cyan)">open in YouTube ↗</a>`;
-        toast.classList.add('on'); setTimeout(()=> toast.classList.remove('on'), 6000);
-      }
-    } catch { flashToast('Request failed', 'Could not reach the server.'); }
-    finally { createBtn.disabled = false; createBtn.innerHTML = prev; }
+  // Start a fresh playlist — the next "Add" creates a new one.
+  document.getElementById('newpl').addEventListener('click', ()=>{
+    playlist = null; savePlaylist(); updatePlStatus();
+    render(currentTracks); // reset add buttons so songs go into the new playlist
+    flashToast('New playlist', 'Your next “Add to playlist” will start a fresh one.');
   });
 
   findBtn.addEventListener('click', findExtended);
@@ -628,7 +614,8 @@
   worker.classList.remove('live');
   wnow.textContent = 'paste a tracklist and hit Find';
   wcount.textContent = '';
-  updateDock();
+  loadPlaylist();
+  updatePlStatus();
   refreshConnection();
 </script>
 </body>
