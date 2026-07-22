@@ -594,11 +594,13 @@
   findBtn.addEventListener('click', findExtended);
 
   // Handle the OAuth redirect result (?youtube=connected|denied|error|badstate).
-  const _p = new URLSearchParams(window.location.search).get('youtube');
+  const _params = new URLSearchParams(window.location.search);
+  const _p = _params.get('youtube');
   if(_p){
+    const detail = _params.get('msg');
     const msg = { connected:'YouTube connected — you can build a playlist now.',
                   denied:'YouTube access was declined.',
-                  error:'Something went wrong connecting YouTube.',
+                  error: detail ? decodeURIComponent(detail) : 'Something went wrong connecting YouTube.',
                   badstate:'Session expired — try connecting again.' }[_p];
     if(msg) flashToast(_p==='connected'?'Connected ✓':'Heads up', msg);
     window.history.replaceState({}, '', window.location.pathname);

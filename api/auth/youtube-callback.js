@@ -34,6 +34,9 @@ export default async function handler(req, res) {
     return bounce(res, `youtube=connected`);
   } catch (err) {
     console.error('youtube-callback error:', err);
-    return bounce(res, `youtube=error`);
+    // Surface the real reason (e.g. redirect_uri_mismatch, invalid_client) so
+    // it can be diagnosed without server logs.
+    const msg = encodeURIComponent((err.message || 'error').slice(0, 200));
+    return bounce(res, `youtube=error&msg=${msg}`);
   }
 }
