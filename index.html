@@ -548,12 +548,14 @@
     try { const r = await fetch('/api/youtube-connection').then(r=>r.json()); setConnected(!!r.connected); }
     catch { setConnected(false); }
   }
-  function flashToast(title, sub){
+  function flashToast(title, sub, ms){
     document.querySelector('#toast .tt').textContent = title;
     document.querySelector('#toast .ts').textContent = sub;
     toast.classList.add('on'); clearTimeout(flashToast._t);
-    flashToast._t = setTimeout(()=> toast.classList.remove('on'), 3800);
+    flashToast._t = setTimeout(()=> toast.classList.remove('on'), ms || 3800);
   }
+  // Click the toast to dismiss (useful for long error messages).
+  toast.addEventListener('click', ()=> toast.classList.remove('on'));
   function defaultName(){
     const d = new Date();
     return `TrackFinder — Extended (${d.toLocaleString('en-US',{month:'short'})} ${d.getDate()})`;
@@ -602,7 +604,8 @@
                   denied:'YouTube access was declined.',
                   error: detail ? decodeURIComponent(detail) : 'Something went wrong connecting YouTube.',
                   badstate:'Session expired — try connecting again.' }[_p];
-    if(msg) flashToast(_p==='connected'?'Connected ✓':'Heads up', msg);
+    if(_p==='error'){ console.error('YouTube OAuth error:', msg); flashToast('Heads up', msg, 60000); }
+    else if(msg) flashToast(_p==='connected'?'Connected ✓':'Heads up', msg);
     window.history.replaceState({}, '', window.location.pathname);
   }
 
