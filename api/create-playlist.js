@@ -7,6 +7,7 @@
 // "Add to playlist" click). Requires a prior OAuth connection.
 
 import { createPlaylist } from './_lib/youtube-write.js';
+import { userIdFrom } from './_lib/google-oauth.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -18,7 +19,7 @@ export default async function handler(req, res) {
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
     const title = (body.title || 'TrackFinder — Extended Mixes').toString().slice(0, 150);
 
-    const result = await createPlaylist(title);
+    const result = await createPlaylist(title, userIdFrom(req));
     return res.status(200).json(result);
   } catch (err) {
     if (err.needsAuth) return res.status(401).json({ error: err.message, needsAuth: true });

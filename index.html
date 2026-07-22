@@ -20,7 +20,7 @@
     --mono:'Space Mono',ui-monospace,monospace;
   }
   *{box-sizing:border-box;}
-  html,body{margin:0;padding:0;}
+  html,body{margin:0;padding:0;overflow-x:hidden;max-width:100%;}
   body{
     background:
       radial-gradient(900px 500px at 82% -8%, rgba(246,185,59,.06), transparent 60%),
@@ -92,7 +92,7 @@
   .plname{background:#0F141C;border:1px solid var(--line);border-radius:9px;color:var(--text);
     font-family:var(--mono);font-size:12px;padding:10px 12px;min-width:150px;outline:none;}
   .plname:focus{border-color:var(--cyan);}
-  #connect.connected{color:var(--green);border-color:rgba(86,209,134,.4);cursor:default;}
+  #connect.connected{color:var(--green);border-color:rgba(86,209,134,.4);}
 
   .addbtn{font-family:var(--mono);font-size:12px;font-weight:700;border-radius:8px;padding:8px 13px;
     cursor:pointer;border:1px solid var(--line);background:transparent;color:var(--muted);
@@ -229,12 +229,16 @@
     .sc-badge{padding:2px 4px;}
     .inputcard input{padding:6px 4px 10px;border-bottom:1px solid var(--line-soft);font-size:16px;}
     .inputcard .btn{width:100%;}
-    .row{grid-template-columns:58px 42px 1fr;gap:8px;}
+    .row{grid-template-columns:52px 40px 1fr;gap:8px;}
     .track{padding:16px;}
+    .delta-tag{display:none;}          /* durations already shown; tag overflowed narrow bars */
     .match{flex-direction:column;align-items:stretch;}
-    .actions{justify-content:space-between;}
-    .dock-inner{padding:14px 16px;gap:12px;}
+    .actions{justify-content:space-between;gap:10px;}
+    .addbtn{flex:1;text-align:center;}
+    .dock-inner{padding:14px 16px;gap:10px;}
     .dock .btn-primary{width:100%;justify-content:center;}
+    .plname{width:100%;min-width:0;}
+    #connect,#newpl{flex:1;text-align:center;}
     .worker{flex-wrap:wrap;}
     .worker .count{margin-left:0;width:100%;}
   }
@@ -583,7 +587,10 @@
   }
 
   connectBtn.addEventListener('click', ()=>{
-    if(ytConnected) return;
+    if(ytConnected){
+      if(!window.confirm('Switch to a different YouTube account? You’ll choose the account on the next screen, and it becomes the one this browser adds to.')) return;
+      playlist = null; savePlaylist(); // the current playlist belonged to the previous account
+    }
     window.location.href = '/api/auth/youtube-start';
   });
 

@@ -1,10 +1,10 @@
 // Google OAuth 2.0 helper for YouTube playlist creation.
 //
 // Scope youtube.force-ssl lets us create a playlist and add items on the
-// signed-in user's account. Tokens are stored server-side in the `connections`
-// table (user_id='app', provider='youtube') — this is a single-connection
-// personal-tool model; whoever connects owns the target account. (Multi-user
-// would key tokens per real user id.)
+// signed-in user's account. Multi-user: tokens are stored per browser, keyed by
+// the `tf_uid` cookie (see userIdFrom) in the `connections` table
+// (user_id=<tf_uid>, provider='youtube'), so each person signs in with their own
+// YouTube account. There is no shared connection.
 //
 // Needs GOOGLE_OAUTH_CLIENT_ID + GOOGLE_OAUTH_CLIENT_SECRET (Vercel / .env).
 
@@ -32,6 +32,19 @@ export function redirectUriFrom(req) {
   const proto = req.headers['x-forwarded-proto'] || 'https';
   const host = req.headers['x-forwarded-host'] || req.headers.host;
   return `${proto}://${host}/api/auth/youtube-callback`;
+}
+
+// Per-browser user id from the `tf_uid` cookie (set at youtube-start). This is
+// what makes the tool multi-user: each browser signs in with its own YouTube
+// account and its tokens are stored under its own id, instead of one shared
+// 'app' connection. Returns null if the cookie isn't set yet.
+export function userIdFrom(req) {
+  const raw = req.headers.cookie || '';
+  for (const part of raw.split(';')) {
+    const [k, ...v] = part.trim().split('=');
+    if (k === 'tf_uid') return decodeURIComponent(v.join('='));
+  }
+  return null;
 }
 
 // Consent-screen URL. access_type=offline + prompt=consent so we receive a
@@ -62,8 +75,9 @@ async function tokenRequest(params) {
   return res.json();
 }
 
-// Exchange the authorization code for tokens and store them.
-export async function exchangeCodeAndStore(code, redirectUri) {
+// Exchange the authorization code for tokens and store them for this user.
+export async function exchangeCodeAndStore(code, redirectUri, userId) {
+  if (!userId) throw new Error('Missing user id (tf_uid cookie).');
   const { id, secret } = creds();
   const json = await tokenRequest({
     grant_type: 'authorization_code',
@@ -76,7 +90,7 @@ export async function exchangeCodeAndStore(code, redirectUri) {
   const expiresAt = new Date(Date.now() + (json.expires_in ?? 3600) * 1000).toISOString();
   const { error } = await supabase.from('connections').upsert(
     {
-      user_id: 'app',
+      user_id: userId,
       provider: 'youtube',
       access_token: json.access_token,
       refresh_token: json.refresh_token ?? null,
@@ -87,24 +101,30 @@ export async function exchangeCodeAndStore(code, redirectUri) {
   if (error) throw new Error(`Failed to store YouTube tokens: ${error.message}`);
 }
 
-// True if we have a stored connection with a refresh token.
-export async function isConnected() {
+// True if this user has a stored connection with a refresh token.
+export async function isConnected(userId) {
+  if (!userId) return false;
   const { data } = await supabase
     .from('connections')
     .select('refresh_token')
-    .eq('user_id', 'app')
+    .eq('user_id', userId)
     .eq('provider', 'youtube')
     .maybeSingle();
   return !!data?.refresh_token;
 }
 
-// Return a valid access token, refreshing if the stored one has expired.
+// Return a valid access token for this user, refreshing if expired.
 // Throws an error tagged needsAuth if there's no usable connection.
-export async function getValidAccessToken() {
+export async function getValidAccessToken(userId) {
+  if (!userId) {
+    const err = new Error('YouTube is not connected. Connect it first.');
+    err.needsAuth = true;
+    throw err;
+  }
   const { data } = await supabase
     .from('connections')
     .select('access_token, refresh_token, expires_at')
-    .eq('user_id', 'app')
+    .eq('user_id', userId)
     .eq('provider', 'youtube')
     .maybeSingle();
 
@@ -136,7 +156,7 @@ export async function getValidAccessToken() {
   await supabase
     .from('connections')
     .update({ access_token: json.access_token, expires_at: expiresAt })
-    .eq('user_id', 'app')
+    .eq('user_id', userId)
     .eq('provider', 'youtube');
 
   return json.access_token;

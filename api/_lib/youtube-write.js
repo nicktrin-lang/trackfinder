@@ -32,9 +32,9 @@ async function ytPost(path, token, body, retries = 4) {
   throw new Error(`YouTube API failed (${lastStatus}) after retries: ${lastDetail}`);
 }
 
-// Create an empty PRIVATE playlist. Returns { playlistId, url }.
-export async function createPlaylist(title) {
-  const token = await getValidAccessToken();
+// Create an empty PRIVATE playlist for this user. Returns { playlistId, url }.
+export async function createPlaylist(title, userId) {
+  const token = await getValidAccessToken(userId);
   const pl = await ytPost('/playlists?part=snippet,status', token, {
     snippet: { title, description: 'Extended / club versions found by TrackFinder.' },
     status: { privacyStatus: 'private' },
@@ -42,9 +42,9 @@ export async function createPlaylist(title) {
   return { playlistId: pl.id, url: `https://www.youtube.com/playlist?list=${pl.id}` };
 }
 
-// Add one video to an existing playlist. Returns true on success.
-export async function addVideo(playlistId, videoId) {
-  const token = await getValidAccessToken();
+// Add one video to an existing playlist on this user's account. Returns true.
+export async function addVideo(playlistId, videoId, userId) {
+  const token = await getValidAccessToken(userId);
   await ytPost('/playlistItems?part=snippet', token, {
     snippet: { playlistId, resourceId: { kind: 'youtube#video', videoId } },
   });

@@ -6,6 +6,7 @@
 // SIDE-EFFECT GATE: reached only from an explicit user "Add to playlist" click.
 
 import { addVideo } from './_lib/youtube-write.js';
+import { userIdFrom } from './_lib/google-oauth.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -20,7 +21,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Missing playlistId or videoId.' });
     }
 
-    await addVideo(playlistId, videoId);
+    await addVideo(playlistId, videoId, userIdFrom(req));
     return res.status(200).json({ ok: true });
   } catch (err) {
     if (err.needsAuth) return res.status(401).json({ error: err.message, needsAuth: true });

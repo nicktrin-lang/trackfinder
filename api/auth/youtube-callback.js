@@ -2,7 +2,7 @@
 // Google redirects here after consent. We verify the CSRF state cookie,
 // exchange the code for tokens, store them, and bounce back to the app.
 
-import { exchangeCodeAndStore, redirectUriFrom } from '../_lib/google-oauth.js';
+import { exchangeCodeAndStore, redirectUriFrom, userIdFrom } from '../_lib/google-oauth.js';
 
 function readCookie(req, name) {
   const raw = req.headers.cookie || '';
@@ -29,8 +29,11 @@ export default async function handler(req, res) {
   const expected = readCookie(req, 'tf_oauth_state');
   if (!expected || expected !== state) return bounce(res, `youtube=badstate`);
 
+  const userId = userIdFrom(req);
+  if (!userId) return bounce(res, `youtube=error&msg=${encodeURIComponent('Missing session cookie; try again.')}`);
+
   try {
-    await exchangeCodeAndStore(code, redirectUriFrom(req));
+    await exchangeCodeAndStore(code, redirectUriFrom(req), userId);
     return bounce(res, `youtube=connected`);
   } catch (err) {
     console.error('youtube-callback error:', err);
